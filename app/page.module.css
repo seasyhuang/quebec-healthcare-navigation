@@ -1,0 +1,482 @@
+.app {
+  min-height: 100vh;
+  background: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+}
+
+.topBar {
+  width: 100%;
+  max-width: 400px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  margin-bottom: 8px;
+}
+
+.logoBox {
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: #e5e5e5;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.languageToggle {
+  display: inline-flex;
+  border-radius: 999px;
+  border: 1px solid #d4d4d4;
+  overflow: hidden;
+}
+
+.languageToggle button {
+  border: none;
+  background: #f5f5f5;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+.languageActive {
+  background: #d4d4d4 !important;
+  color: #111827 !important;
+}
+
+.helpIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid #d4d4d4;
+  background: #f5f5f5;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.frame {
+  width: 100%;
+  max-width: 400px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 64px; /* space for emergency bar */
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.heroCard {
+  background: #f5f5f5;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.heroIllustration {
+  width: 100%;
+  height: 80px;
+  border-radius: 8px;
+  background: #e5e5e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.heroTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.heroSubtitle {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.heroSupport {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.primaryCtaBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.primaryButton {
+  width: 100%;
+  padding: 12px;
+  border-radius: 999px;
+  border: none;
+  background: #111827;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.buttonDisabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ctaHelpText {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.reassuranceCard {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reassuranceRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.reassuranceIcon {
+  font-size: 12px;
+  color: #4b5563;
+  margin-right: 4px;
+}
+
+.footerNote {
+  font-size: 10px;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+
+.progressBar {
+  position: relative;
+  height: 32px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.progressFill,
+.progressFillTwo,
+.progressFillThree,
+.progressFillFour {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #9ca3af;
+}
+
+.progressFill {
+  width: 25%;
+}
+
+.progressFillTwo {
+  width: 50%;
+}
+
+.progressFillThree {
+  width: 75%;
+}
+
+.progressFillFour {
+  width: 100%;
+}
+
+.progressText {
+  position: relative;
+  font-size: 11px;
+  color: #374151;
+}
+
+.safetyBanner {
+  background: #fee2e2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: #991b1b;
+}
+
+.sectionCard {
+  background: #f5f5f5;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.sectionHelper {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  color: #4b5563;
+}
+
+.textAreaBox {
+  border-radius: 8px;
+  border: 1px solid #d4d4d4;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.textArea {
+  width: 100%;
+  min-height: 72px;
+  border: none;
+  resize: none;
+  font-size: 13px;
+  background: transparent;
+}
+
+.textArea:focus {
+  outline: none;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #d4d4d4;
+  background: #f9fafb;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chipSelected {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
+.actionsRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.actionsColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.secondaryButton {
+  flex: 1;
+  padding: 12px;
+  border-radius: 999px;
+  border: 1px solid #d4d4d4;
+  background: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+  color: #374151;
+}
+
+.optionList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.optionCard {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #d4d4d4;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.optionSelected {
+  border-color: #111827;
+  background: #e5e7eb;
+}
+
+.optionHeader {
+  display: flex;
+  gap: 8px;
+}
+
+.optionIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: #e5e5e5;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.optionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.optionSubtitle {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.optionMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.metaBadge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  font-size: 10px;
+  color: #4b5563;
+}
+
+.optionWhy {
+  font-size: 11px;
+  color: #4b5563;
+}
+
+.expectationGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.expectationBox {
+  background: #f5f5f5;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.expectationLabel {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.expectationValueBox {
+  background: #e5e7eb;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+  color: #111827;
+}
+
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 11px;
+  color: #4b5563;
+}
+
+.checklist li::before {
+  content: "▢ ";
+}
+
+.timeline {
+  padding-left: 16px;
+  font-size: 11px;
+  color: #4b5563;
+}
+
+.nextStepsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nextCard {
+  background: #f5f5f5;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.nextTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.nextText {
+  font-size: 11px;
+  color: #4b5563;
+}
+
+.emergencyBar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: #b91c1c;
+  color: #ffffff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: none;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .frame {
+    padding: 12px;
+  }
+}
