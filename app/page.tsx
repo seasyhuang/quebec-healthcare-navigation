@@ -3,12 +3,19 @@
 import { useState } from "react";
 import styles from "./page.module.css";
 
-type Step = "landing" | "topic" | "questions" | "recommendation" | "nextStep";
+type Step =
+  | "landing"
+  | "topic"
+  | "questions"
+  | "recommendation"
+  | "nextStep"
+  | "otherFallback";
 
 type Topic =
   | "notFeelingWell"
   | "medication"
-  | "appointment";
+  | "appointment"
+  | "other";
 
 type SeverityAnswer = "yes" | "no" | null;
 type AgeGroup = "adult" | "child" | null;
@@ -147,15 +154,15 @@ function getRecommendedOptions(
   }
 
   switch (topic) {
-    case "medication":
-      // Medication questions → pharmacist first
-      return ["pharmacist", "clsc"];
     case "notFeelingWell":
       // Not feeling well + needs care within 24h → walk-in or pharmacist
       if (time === "yes") {
         return ["walkIn", "pharmacist"];
       }
       return ["pharmacist", "gap"];
+    case "medication":
+      // Medication questions → pharmacist first
+      return ["pharmacist", "clsc"];
     case "appointment":
       // Booking/managing appointments → CLSC or GAP
       return ["clsc", "gap"];
@@ -185,6 +192,14 @@ export default function Home() {
     setTimeNeed(null);
     setRecommendedOptions([]);
     setSelectedCareOption(null);
+  };
+
+  const handleContinueFromTopic = () => {
+    if (topic === "other") {
+      setStep("otherFallback");
+    } else {
+      setStep("questions");
+    }
   };
 
   const handleContinueFromQuestions = () => {
@@ -222,10 +237,14 @@ export default function Home() {
         {step === "landing" && (
           <section className={styles.screen}>
             <div className={styles.heroCard}>
-              <h1 className={styles.heroTitle}>Need healthcare in Québec? Find the best next step for your situation. </h1>
+              <h1 className={styles.heroTitle}>
+                Find the right care,
+                <br />
+                when you need it
+              </h1>
               <p className={styles.heroSubtitle}>
-                Answer a few questions and get a clear next step. 
-                <br />Helping you navigate your healthcare options, no diagnosis.
+                Not sure where to go for care in Québec? We&apos;ll help you understand your options — no
+                diagnosis.
               </p>
             </div>
 
@@ -261,14 +280,16 @@ export default function Home() {
                   <div className={styles.optionIcon}>🤒</div>
                   <div>
                     <p className={styles.optionTitle}>I&apos;m not feeling well</p>
-                    <p className={styles.optionSubtitle}>For symptoms, illness, "is this serious?", "where do I go?"</p>
+                    <p className={styles.optionSubtitle}>
+                      Find the right care for symptoms or illness.
+                    </p>
                   </div>
                 </div>
                 <div className={styles.optionChevron}>›</div>
               </button>
 
-                  <button
-                    type="button"
+              <button
+                type="button"
                 className={`${styles.optionCard} ${
                   topic === "medication" ? styles.optionSelected : ""
                 }`}
@@ -278,11 +299,13 @@ export default function Home() {
                   <div className={styles.optionIcon}>💊</div>
                   <div>
                     <p className={styles.optionTitle}>I need help with medication</p>
-                    <p className={styles.optionSubtitle}>Renewals, pharmacist scope, minor ailment assessments, OTC info</p>
+                    <p className={styles.optionSubtitle}>
+                      Help with renewals, minor issues, or medication questions. Check if a pharmacist can treat your issue.
+                    </p>
                   </div>
                 </div>
                 <div className={styles.optionChevron}>›</div>
-                  </button>
+              </button>
 
               <button
                 type="button"
@@ -295,10 +318,29 @@ export default function Home() {
                   <div className={styles.optionIcon}>📅</div>
                   <div>
                     <p className={styles.optionTitle}>I need to book or manage an appointment</p>
-                    <p className={styles.optionSubtitle}>Vaccines, blood tests, nurse visits, screening</p>
+                    <p className={styles.optionSubtitle}>
+                      Find where to book vaccines, blood tests, and screenings.
+                    </p>
                   </div>
-              </div>
-              <div className={styles.optionChevron}>›</div>
+                </div>
+                <div className={styles.optionChevron}>›</div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCard} ${
+                  topic === "other" ? styles.optionSelected : ""
+                }`}
+                onClick={() => setTopic("other")}
+              >
+                <div className={styles.optionHeader}>
+                  <div className={styles.optionIcon}>❓</div>
+                  <div>
+                    <p className={styles.optionTitle}>Something else</p>
+                    <p className={styles.optionSubtitle}>Get general guidance or a safe next step.</p>
+                  </div>
+                </div>
+                <div className={styles.optionChevron}>›</div>
               </button>
             </div>
 
@@ -316,7 +358,7 @@ export default function Home() {
                   !canContinueFromTopic ? styles.buttonDisabled : ""
                 }`}
                 disabled={!canContinueFromTopic}
-                onClick={() => setStep("questions")}
+                onClick={handleContinueFromTopic}
               >
                 Continue
               </button>
@@ -501,6 +543,28 @@ export default function Home() {
                 type="button"
                 className={styles.secondaryButton}
                 onClick={() => setStep("questions")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {step === "otherFallback" && (
+          <section className={styles.screen}>
+            <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>We&apos;ll help you with other requests.</h2>
+              <p className={styles.sectionHelper}>
+                For now, if you&apos;re not sure which option fits, you can call Info-Santé 811 for nurse
+                advice or contact your local CLSC for general support.
+              </p>
+            </div>
+
+            <div className={styles.actionsRow}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => setStep("topic")}
               >
                 Back
               </button>

@@ -368,7 +368,7 @@
   width: 100%;
   padding: 0;
   border-radius: 8px;
-  border: 1.5px solid #9ca3af;
+  border: 1.5px solid #e5e7eb;
   background: #ffffff;
   display: flex;
   cursor: pointer;
@@ -382,14 +382,26 @@
 }
 
 .optionCard:hover {
-  border-color: #9ca3af;
+  border-color: #d1d5db;
   background: #fafafa;
 }
 
 .optionSelected {
   border-color: #111827;
-  background: #f9fafb;
+  background: #e5e7eb;
   border-width: 2px;
+}
+
+.optionSelected .optionTitle {
+  color: #111827;
+}
+
+.optionSelected .optionSubtitle {
+  color: #374151;
+}
+
+.optionSelected .optionChevron {
+  color: #111827;
 }
 
 .optionHeader {
