@@ -9,7 +9,19 @@ type Step =
   | "questions"
   | "recommendation"
   | "nextStep"
-  | "otherFallback";
+  | "otherFallback"
+  | "notFeelingWellType"
+  | "notFeelingWellSafety"
+  | "notFeelingWellSeverity"
+  | "notFeelingWellRecommendation"
+  | "notFeelingWellNextStep"
+  | "medicationType"
+  | "medicationScope"
+  | "medicationRecommendation"
+  | "medicationAction"
+  | "appointmentType"
+  | "appointmentRequirements"
+  | "appointmentAction";
 
 type Topic =
   | "notFeelingWell"
@@ -17,6 +29,11 @@ type Topic =
   | "appointment"
   | "other";
 
+type ProblemType = "injury" | "fever" | "pain" | "chronic" | "unsure" | null;
+type MedicationHelpType = "renewal" | "minorCondition" | "otcQuestion" | "sideEffects" | "unsure" | null;
+type AppointmentType = "vaccination" | "bloodTest" | "nurseVisit" | "screening" | "unsure" | null;
+type SafetyAnswer = "yes" | "no" | null;
+type SeverityLevel = "mild" | "moderate" | "severe" | null;
 type SeverityAnswer = "yes" | "no" | null;
 type AgeGroup = "adult" | "child" | null;
 type TimeAnswer = "yes" | "no" | null;
@@ -139,6 +156,62 @@ function getNextStepContent(option: CareOptionId): NextStepContent {
   }
 }
 
+function getRecommendedOptionsForNotFeelingWell(
+  problemType: ProblemType,
+  safetyAnswer: SafetyAnswer,
+  severity: SeverityLevel
+): CareOptionId[] {
+  // Safety first: any red flag goes to ER
+  if (safetyAnswer === "yes") {
+    return ["er"];
+  }
+
+  // Severe symptoms → ER
+  if (severity === "severe") {
+    return ["er"];
+  }
+
+  // Mild symptoms → pharmacist
+  if (severity === "mild") {
+    return ["pharmacist"];
+  }
+
+  // Moderate symptoms → walk-in or GAP depending on problem type
+  if (severity === "moderate") {
+    switch (problemType) {
+      case "injury":
+      case "fever":
+      case "pain":
+        return ["walkIn", "gap"];
+      case "chronic":
+        return ["gap", "walkIn"];
+      default:
+        return ["walkIn", "gap"];
+    }
+  }
+
+  // Default fallback
+  return ["pharmacist", "gap"];
+}
+
+function canPharmacistHelp(medicationType: MedicationHelpType): boolean {
+  // Pharmacists can handle most medication requests
+  switch (medicationType) {
+    case "renewal":
+    case "minorCondition":
+    case "otcQuestion":
+      return true;
+    case "sideEffects":
+      // Side effects might need clinic evaluation, but pharmacist can advise first
+      return true;
+    case "unsure":
+      // When unsure, suggest pharmacist first as they can triage
+      return true;
+    default:
+      return true;
+  }
+}
+
 function getRecommendedOptions(
   topic: Topic | null,
   severity: SeverityAnswer,
@@ -175,31 +248,94 @@ export default function Home() {
   const [step, setStep] = useState<Step>("landing");
   const [language, setLanguage] = useState<"FR" | "EN">("FR");
   const [topic, setTopic] = useState<Topic | null>(null);
+  const [problemType, setProblemType] = useState<ProblemType>(null);
+  const [medicationType, setMedicationType] = useState<MedicationHelpType>(null);
+  const [appointmentType, setAppointmentType] = useState<AppointmentType>(null);
+  const [safetyAnswer, setSafetyAnswer] = useState<SafetyAnswer>(null);
+  const [severityLevel, setSeverityLevel] = useState<SeverityLevel>(null);
   const [severity, setSeverity] = useState<SeverityAnswer>(null);
   const [ageGroup, setAgeGroup] = useState<AgeGroup>(null);
   const [timeNeed, setTimeNeed] = useState<TimeAnswer>(null);
   const [recommendedOptions, setRecommendedOptions] = useState<CareOptionId[]>([]);
   const [selectedCareOption, setSelectedCareOption] = useState<CareOptionId | null>(null);
+  const [pharmacistCanHelp, setPharmacistCanHelp] = useState<boolean>(false);
 
   const canContinueFromTopic = !!topic;
   const canContinueFromQuestions = !!severity && !!ageGroup && !!timeNeed;
+  const canContinueFromProblemType = !!problemType;
+  const canContinueFromSafety = safetyAnswer !== null;
+  const canContinueFromSeverity = !!severityLevel;
+  const canContinueFromMedicationType = !!medicationType;
+  const canContinueFromAppointmentType = !!appointmentType;
 
   const restart = () => {
     setStep("landing");
     setTopic(null);
+    setProblemType(null);
+    setMedicationType(null);
+    setAppointmentType(null);
+    setSafetyAnswer(null);
+    setSeverityLevel(null);
     setSeverity(null);
     setAgeGroup(null);
     setTimeNeed(null);
     setRecommendedOptions([]);
     setSelectedCareOption(null);
+    setPharmacistCanHelp(false);
   };
 
   const handleContinueFromTopic = () => {
     if (topic === "other") {
       setStep("otherFallback");
+    } else if (topic === "notFeelingWell") {
+      setStep("notFeelingWellType");
+    } else if (topic === "medication") {
+      setStep("medicationType");
+    } else if (topic === "appointment") {
+      setStep("appointmentType");
     } else {
       setStep("questions");
     }
+  };
+
+  const handleContinueFromProblemType = () => {
+    setStep("notFeelingWellSafety");
+  };
+
+  const handleContinueFromSafety = () => {
+    if (safetyAnswer === "yes") {
+      // Red flag detected → go directly to ER recommendation
+      setRecommendedOptions(["er"]);
+      setSelectedCareOption(null);
+      setStep("notFeelingWellRecommendation");
+      } else {
+      setStep("notFeelingWellSeverity");
+    }
+  };
+
+  const handleContinueFromSeverity = () => {
+    const options = getRecommendedOptionsForNotFeelingWell(problemType, safetyAnswer, severityLevel);
+    setRecommendedOptions(options);
+    setSelectedCareOption(null);
+    setStep("notFeelingWellRecommendation");
+  };
+
+  const handleContinueFromMedicationType = () => {
+    setStep("medicationScope");
+  };
+
+  const handleContinueFromMedicationScope = () => {
+    const canHelp = canPharmacistHelp(medicationType);
+    setPharmacistCanHelp(canHelp);
+    setStep("medicationRecommendation");
+  };
+
+  const handleContinueFromAppointmentType = () => {
+    setStep("appointmentRequirements");
+  };
+
+  const handleContinueFromAppointmentRequirements = () => {
+    setStep("appointmentAction");
   };
 
   const handleContinueFromQuestions = () => {
@@ -212,7 +348,21 @@ export default function Home() {
   return (
     <div className={styles.app}>
       <header className={styles.topBar}>
-        <div className={styles.logoBox}> ⛑️ Allo Santé Québec</div>
+        <button 
+          type="button"
+          className={styles.logoBox}
+          onClick={restart}
+          style={{ 
+            background: "none", 
+            border: "none", 
+            cursor: "pointer",
+            padding: "6px 0px",
+            textAlign: "left"
+          }}
+        >
+          <span className={styles.locationIcon}>📍</span>
+          CareNav
+        </button>
         <div className={styles.topBarRight}>
           <div className={styles.languageToggle}>
             <button
@@ -233,10 +383,16 @@ export default function Home() {
         </div>
       </header>
 
-      <main className={styles.frame}>
+      <main className={
+        step === "landing" 
+          ? styles.frameLanding 
+          : step === "topic" || step === "notFeelingWellType" || step === "medicationType" || step === "appointmentType"
+          ? styles.frameStep1
+          : styles.frameStep1
+      }>
         {step === "landing" && (
-          <section className={styles.screen}>
-            <div className={styles.heroCard}>
+          <section className={styles.landingScreen}>
+            <div className={styles.heroSection}>
               <h1 className={styles.heroTitle}>
                 Find the right care,
                 <br />
@@ -244,121 +400,701 @@ export default function Home() {
               </h1>
               <p className={styles.heroSubtitle}>
                 Not sure where to go for care in Québec? We&apos;ll help you understand your options — no
-                diagnosis.
+                jargon, no diagnosis, just clear guidance.
               </p>
             </div>
 
-            <div className={styles.primaryCtaBlock}>
+            <div className={styles.ctaBlock}>
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={styles.primaryLandingButton}
                 onClick={() => setStep("topic")}
               >
-                ▶️ Start
+                Get started
+                <span className={styles.arrowIcon}>→</span>
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryLandingButton}
+                onClick={() => {}}
+              >
+                Learn how it works
               </button>
             </div>
           </section>
         )}
 
         {step === "topic" && (
-          <section className={styles.screen}>
-            <p className={styles.stepLabel}>Step 1 of 3</p>
-            <h1 className={styles.sectionTitle}>What do you need help with today?</h1>
-            <p className={styles.sectionHelper}>
+          <section className={styles.step1Screen}>
+            <h1 className={styles.sectionTitleStep1}>What do you need help with today?</h1>
+            <p className={styles.sectionHelperStep1}>
               Choose the option that fits best — you can always go back.
             </p>
+
+            <div className={styles.optionListStep1}>
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  topic === "notFeelingWell" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setTopic("notFeelingWell");
+                  setTimeout(() => handleContinueFromTopic(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>🤒</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>I&apos;m not feeling well</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Find the right care for symptoms or illness.
+                    </p>
+              </div>
+              </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  topic === "medication" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setTopic("medication");
+                  setTimeout(() => handleContinueFromTopic(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>💊</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>I need help with medication</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Help with renewals, minor issues, or medication questions. Check if a pharmacist can treat your issue.
+                    </p>
+              </div>
+            </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  topic === "appointment" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setTopic("appointment");
+                  setTimeout(() => handleContinueFromTopic(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>📅</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>I need to book or manage an appointment</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Find where to book vaccines, blood tests, and screenings.
+                    </p>
+                  </div>
+              </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  topic === "other" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setTopic("other");
+                  setTimeout(() => handleContinueFromTopic(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>❓</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Something else</p>
+                    <p className={styles.optionSubtitleStep1}>Get general guidance or a safe next step.</p>
+              </div>
+              </div>
+              </button>
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={restart}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 1: I'm not feeling well - Step 1: Problem Type */}
+        {step === "notFeelingWellType" && (
+          <section className={styles.step1Screen}>
+            <h1 className={styles.sectionTitleStep1}>What type of problem is this?</h1>
+            <p className={styles.sectionHelperStep1}>
+              This helps us guide you to the right care. No diagnosis is given.
+            </p>
+
+            <div className={styles.optionListStep1}>
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  problemType === "injury" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setProblemType("injury");
+                  setTimeout(() => handleContinueFromProblemType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>🩹</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Injury</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Cuts, bruises, sprains, or trauma.
+                    </p>
+            </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  problemType === "fever" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setProblemType("fever");
+                  setTimeout(() => handleContinueFromProblemType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>🌡️</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Fever or infection</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Fever, cold symptoms, or signs of infection.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  problemType === "pain" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setProblemType("pain");
+                  setTimeout(() => handleContinueFromProblemType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>😣</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Pain or new symptom</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      New pain, discomfort, or other symptoms.
+                    </p>
+              </div>
+            </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  problemType === "chronic" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setProblemType("chronic");
+                  setTimeout(() => handleContinueFromProblemType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>🔄</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Chronic condition flare</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Worsening of an existing health condition.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  problemType === "unsure" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setProblemType("unsure");
+                  setTimeout(() => handleContinueFromProblemType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>❓</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>I&apos;m not sure</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Not sure how to categorize your concern.
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("topic")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 1: Step 2: Safety Check */}
+        {step === "notFeelingWellSafety" && (
+          <section className={styles.screen}>
+            <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>Safety check</h2>
+              <p className={styles.sectionHelper}>
+                We need to check if this is an emergency. This helps ensure your safety.
+              </p>
+            </div>
+
+            <div className={styles.sectionCard}>
+              <p className={styles.sectionLabel}>
+                Are you experiencing any of the following right now?
+              </p>
+              <ul className={styles.checklist} style={{ marginTop: "8px", marginBottom: "16px" }}>
+                <li>Difficulty breathing</li>
+                <li>Chest pain</li>
+                <li>Severe bleeding</li>
+                <li>Loss of consciousness</li>
+                <li>Sudden severe symptom</li>
+              </ul>
+              <div className={styles.chipRow}>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${
+                    safetyAnswer === "yes" ? styles.chipSelected : ""
+                  }`}
+                  onClick={() => {
+                    setSafetyAnswer("yes");
+                    setTimeout(() => handleContinueFromSafety(), 100);
+                  }}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${
+                    safetyAnswer === "no" ? styles.chipSelected : ""
+                  }`}
+                  onClick={() => {
+                    setSafetyAnswer("no");
+                    setTimeout(() => handleContinueFromSafety(), 100);
+                  }}
+                >
+                  No
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.safetyBanner}>
+              If you feel unsafe or much worse, go to the emergency room or call 911 immediately.
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("notFeelingWellType")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 1: Step 3: Severity */}
+        {step === "notFeelingWellSeverity" && (
+          <section className={styles.screen}>
+            <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>How severe is this?</h2>
+              <p className={styles.sectionHelper}>
+                Choose the level that best describes your symptoms right now.
+              </p>
+            </div>
 
             <div className={styles.optionList}>
               <button
                 type="button"
                 className={`${styles.optionCard} ${
-                  topic === "notFeelingWell" ? styles.optionSelected : ""
+                  severityLevel === "mild" ? styles.optionSelected : ""
                 }`}
-                onClick={() => setTopic("notFeelingWell")}
+                onClick={() => {
+                  setSeverityLevel("mild");
+                  setTimeout(() => handleContinueFromSeverity(), 100);
+                }}
               >
                 <div className={styles.optionHeader}>
-                  <div className={styles.optionIcon}>🤒</div>
                   <div>
-                    <p className={styles.optionTitle}>I&apos;m not feeling well</p>
+                    <p className={styles.optionTitle}>Mild</p>
                     <p className={styles.optionSubtitle}>
-                      Find the right care for symptoms or illness.
+                      Uncomfortable but manageable. You can go about your day.
                     </p>
-                  </div>
+            </div>
                 </div>
-                <div className={styles.optionChevron}>›</div>
               </button>
 
               <button
                 type="button"
                 className={`${styles.optionCard} ${
-                  topic === "medication" ? styles.optionSelected : ""
+                  severityLevel === "moderate" ? styles.optionSelected : ""
                 }`}
-                onClick={() => setTopic("medication")}
+                onClick={() => {
+                  setSeverityLevel("moderate");
+                  setTimeout(() => handleContinueFromSeverity(), 100);
+                }}
               >
                 <div className={styles.optionHeader}>
-                  <div className={styles.optionIcon}>💊</div>
                   <div>
-                    <p className={styles.optionTitle}>I need help with medication</p>
+                    <p className={styles.optionTitle}>Moderate</p>
                     <p className={styles.optionSubtitle}>
-                      Help with renewals, minor issues, or medication questions. Check if a pharmacist can treat your issue.
+                      Noticeably bothersome. Affects your daily activities.
                     </p>
                   </div>
                 </div>
-                <div className={styles.optionChevron}>›</div>
               </button>
 
               <button
                 type="button"
                 className={`${styles.optionCard} ${
-                  topic === "appointment" ? styles.optionSelected : ""
+                  severityLevel === "severe" ? styles.optionSelected : ""
                 }`}
-                onClick={() => setTopic("appointment")}
+                onClick={() => {
+                  setSeverityLevel("severe");
+                  setTimeout(() => handleContinueFromSeverity(), 100);
+                }}
               >
                 <div className={styles.optionHeader}>
-                  <div className={styles.optionIcon}>📅</div>
                   <div>
-                    <p className={styles.optionTitle}>I need to book or manage an appointment</p>
+                    <p className={styles.optionTitle}>Severe</p>
                     <p className={styles.optionSubtitle}>
-                      Find where to book vaccines, blood tests, and screenings.
+                      Very intense or unbearable. Hard to focus on anything else.
                     </p>
                   </div>
                 </div>
-                <div className={styles.optionChevron}>›</div>
-              </button>
-
-              <button
-                type="button"
-                className={`${styles.optionCard} ${
-                  topic === "other" ? styles.optionSelected : ""
-                }`}
-                onClick={() => setTopic("other")}
-              >
-                <div className={styles.optionHeader}>
-                  <div className={styles.optionIcon}>❓</div>
-                  <div>
-                    <p className={styles.optionTitle}>Something else</p>
-                    <p className={styles.optionSubtitle}>Get general guidance or a safe next step.</p>
-                  </div>
-                </div>
-                <div className={styles.optionChevron}>›</div>
               </button>
             </div>
 
-            <div className={styles.actionsRow}>
+            <div className={styles.bottomActions}>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("notFeelingWellSafety")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 1: Step 4: Recommendation */}
+        {step === "notFeelingWellRecommendation" && (
+          <section className={styles.screen}>
+              <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>Suggested care option</h2>
+              <p className={styles.sectionHelper}>
+                Based on your answers, this option fits your situation. Tap to see next steps.
+                </p>
+              </div>
+
+              <div className={styles.optionList}>
+              {recommendedOptions.map((id) => {
+                const option = careOptions[id];
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`${styles.optionCardRecommendation} ${
+                      selectedCareOption === id ? styles.optionSelected : ""
+                      }`}
+                    onClick={() => {
+                      setSelectedCareOption(id);
+                      setStep("notFeelingWellNextStep");
+                    }}
+                    >
+                      <div className={styles.optionHeaderRecommendation}>
+                        <div className={styles.optionIconRecommendation}>
+                          {option.label.match(/^[\u{1F300}-\u{1F9FF}]+/u)?.[0] || option.label.charAt(0)}
+                        </div>
+                        <div className={styles.optionContentRecommendation}>
+                          <h3 className={styles.optionTitleRecommendation}>
+                            {option.label.replace(/^[\u{1F300}-\u{1F9FF}]+\s*/u, "")}
+                          </h3>
+                          <div className={styles.optionDetailSection}>
+                            <p className={styles.optionDetailLabel}>Why this option fits</p>
+                            <p className={styles.optionDetailText}>{option.why}</p>
+                          </div>
+                          <div className={styles.optionDetailSection}>
+                            <p className={styles.optionDetailLabel}>What this option can do</p>
+                            <p className={styles.optionDetailText}>{option.canDo}</p>
+                          </div>
+                          {option.cannotDo && (
+                            <div className={styles.optionDetailSection}>
+                              <p className={styles.optionDetailLabel}>What it cannot do</p>
+                              <p className={styles.optionDetailText}>{option.cannotDo}</p>
+                            </div>
+                          )}
+                          <div className={styles.optionDetailSection}>
+                            <p className={styles.optionDetailLabel}>Time expectations</p>
+                            <p className={styles.optionDetailText}>{option.timeExpectation}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+            <div className={styles.safetyBanner}>
+              If symptoms suddenly get worse, if you feel very unwell, or feel unsafe at home, go to the
+              emergency room or call 911.
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("notFeelingWellSeverity")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 1: Step 5: Next Step */}
+        {step === "notFeelingWellNextStep" && selectedCareOption && (
+          <section className={styles.screen}>
+            <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>
+                Next step: {careOptions[selectedCareOption].label}
+              </h2>
+              <p className={styles.sectionHelper}>
+                Follow these instructions to move forward. This is navigation support only, not a
+                diagnosis.
+              </p>
+            </div>
+
+            {(() => {
+              const content = getNextStepContent(selectedCareOption);
+              return (
+            <div className={styles.sectionCard}>
+                  <p className={styles.sectionLabel}>{content.title}</p>
+                  <ul className={styles.checklist}>
+                    {content.body.map((item, idx) => (
+                      <li key={idx}>{item}</li>
+                    ))}
+                  </ul>
+                  {content.linkHref && content.linkLabel && (
+                    <a
+                      href={content.linkHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={styles.linkButton}
+                    >
+                      {content.linkLabel}
+                    </a>
+                  )}
+                  <p className={styles.sectionHelper}>
+                    You can also call Info-Santé&nbsp;811 for nurse advice about where to go.
+                  </p>
+            </div>
+              );
+            })()}
+
+            <div className={styles.safetyBanner}>
+              If your condition suddenly worsens or you are very worried about your safety, go to the
+              emergency room or call 911.
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
                 onClick={restart}
+              >
+                Restart
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 2: I need help with medication - Step 1: Type of help */}
+        {step === "medicationType" && (
+          <section className={styles.step1Screen}>
+            <h1 className={styles.sectionTitleStep1}>What type of medication help do you need?</h1>
+            <p className={styles.sectionHelperStep1}>
+              This helps us direct you to the right place.
+            </p>
+
+            <div className={styles.optionListStep1}>
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  medicationType === "renewal" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => setMedicationType("renewal")}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>🔄</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Renewal / refill</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Need to refill a prescription that&apos;s running out.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  medicationType === "minorCondition" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setMedicationType("minorCondition");
+                  setTimeout(() => handleContinueFromMedicationType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>🩹</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>A minor condition</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      UTI, cold sore, eczema, allergies, or similar issue.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  medicationType === "otcQuestion" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setMedicationType("otcQuestion");
+                  setTimeout(() => handleContinueFromMedicationType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>💡</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>A question about OTC medication</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Need advice about over-the-counter products or dosing.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  medicationType === "sideEffects" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setMedicationType("sideEffects");
+                  setTimeout(() => handleContinueFromMedicationType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>⚠️</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Side effects or concerns</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Experiencing side effects or worried about your medication.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  medicationType === "unsure" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setMedicationType("unsure");
+                  setTimeout(() => handleContinueFromMedicationType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>❓</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>I&apos;m not sure</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Not sure how to categorize your medication question.
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("topic")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 2: Step 2: Pharmacist Scope */}
+        {step === "medicationScope" && (
+          <section className={styles.screen}>
+            <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>What pharmacists can help with</h2>
+              <p className={styles.sectionHelper}>
+                Pharmacists in Québec have expanded scope of practice. They can help with many medication-related concerns.
+              </p>
+            </div>
+
+            <div className={styles.sectionCard}>
+              <p className={styles.sectionLabel} style={{ marginBottom: "12px", fontWeight: "600" }}>
+                Pharmacists in Québec can:
+              </p>
+              <ul className={styles.checklist}>
+                <li>Renew most maintenance medications</li>
+                <li>Prescribe for minor ailments (UTI, cold sore, eczema, allergies)</li>
+                <li>Adjust medication dosage</li>
+                <li>Substitute equivalent drugs when needed</li>
+                <li>Provide medication advice and counseling</li>
+                <li>Treat common infections</li>
+              </ul>
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("medicationType")}
               >
                 Back
               </button>
               <button
                 type="button"
-                className={`${styles.primaryButton} ${
-                  !canContinueFromTopic ? styles.buttonDisabled : ""
-                }`}
-                disabled={!canContinueFromTopic}
-                onClick={handleContinueFromTopic}
+                className={styles.primaryButtonBottom}
+                onClick={handleContinueFromMedicationScope}
               >
                 Continue
               </button>
@@ -366,87 +1102,530 @@ export default function Home() {
           </section>
         )}
 
-        {step === "questions" && (
+        {/* Flow 2: Step 3: Recommendation */}
+        {step === "medicationRecommendation" && (
           <section className={styles.screen}>
             <div className={styles.sectionCard}>
-              <p className={styles.stepLabel}>Step 2 of 3</p>
-              <h2 className={styles.sectionTitle}>A few quick questions</h2>
+              <h2 className={styles.sectionTitle}>Recommendation</h2>
               <p className={styles.sectionHelper}>
-                This helps choose a safe care option. No diagnosis is given.
+                Based on your situation, here&apos;s what we recommend.
               </p>
             </div>
 
             <div className={styles.sectionCard}>
-              <p className={styles.sectionLabel}>
-                Is this causing severe pain, difficulty breathing, or heavy bleeding?
+              {pharmacistCanHelp ? (
+                <>
+                  <p className={styles.sectionLabel} style={{ fontSize: "16px", marginBottom: "12px", fontWeight: "600" }}>
+                    A pharmacist can help you with this.
+                  </p>
+                  <p className={styles.sectionHelper}>
+                    A pharmacist can address your medication concern. They may be able to renew your prescription, 
+                    prescribe for minor conditions, or provide advice based on their expanded scope of practice in Québec.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className={styles.sectionLabel} style={{ fontSize: "16px", marginBottom: "12px", fontWeight: "600" }}>
+                    You may need a clinic visit for this issue.
+                  </p>
+                  <p className={styles.sectionHelper}>
+                    While pharmacists can help with many medication concerns, this issue may require a clinic visit 
+                    for proper evaluation. A pharmacist can still provide initial advice and may help determine if 
+                    immediate care is needed.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("medicationScope")}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButtonBottom}
+                onClick={() => setStep("medicationAction")}
+              >
+                Next steps
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 2: Step 4: Action */}
+        {step === "medicationAction" && (
+          <section className={styles.screen}>
+            <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>Next steps</h2>
+              <p className={styles.sectionHelper}>
+                Choose an action to move forward with your medication concern.
               </p>
-              <div className={styles.chipRow}>
-                <button
-                  type="button"
-                  className={`${styles.chip} ${
-                    severity === "yes" ? styles.chipSelected : ""
-                  }`}
-                  onClick={() => setSeverity("yes")}
-                >
-                  Yes
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.chip} ${
-                    severity === "no" ? styles.chipSelected : ""
-                  }`}
-                  onClick={() => setSeverity("no")}
-                >
-                  No
-                </button>
+            </div>
+
+            <div className={styles.actionsColumn} style={{ gap: "12px" }}>
+              {pharmacistCanHelp ? (
+                <>
+                  <a
+                    href="https://www.google.com/maps/search/pharmacy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.primaryButton}
+                    style={{ textDecoration: "none", textAlign: "center" }}
+                  >
+                    Find a pharmacy
+                  </a>
+                  
+                  <div className={styles.sectionCard} style={{ marginTop: "8px" }}>
+                    <p className={styles.sectionHelper} style={{ fontSize: "13px", margin: "0" }}>
+                      <strong>When you go:</strong> Bring your RAMQ card and a list of current medications. 
+                      The pharmacist can help with renewals, minor conditions, or medication questions.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <a
+                    href="https://www.google.com/maps/search/pharmacy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.secondaryButton}
+                    style={{ textDecoration: "none", textAlign: "center", width: "100%" }}
+                  >
+                    Find a pharmacy (for initial advice)
+                  </a>
+                  
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    onClick={() => {
+                      setRecommendedOptions(["walkIn", "clsc"]);
+                      setSelectedCareOption(null);
+                      setStep("recommendation");
+                    }}
+                  >
+                    See clinic options
+                  </button>
+                </>
+              )}
+              
+              <div className={styles.sectionCard} style={{ marginTop: "8px" }}>
+                <p className={styles.sectionHelper} style={{ fontSize: "13px", margin: "0" }}>
+                  <strong>Tip:</strong> You can call pharmacies ahead to check if a pharmacist is available 
+                  and what services they offer. Bring your RAMQ card to your visit.
+                </p>
               </div>
             </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("medicationRecommendation")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 3: I need to book or manage an appointment - Step 1: Type of appointment */}
+        {step === "appointmentType" && (
+          <section className={styles.step1Screen}>
+            <h1 className={styles.sectionTitleStep1}>What kind of appointment do you need?</h1>
+            <p className={styles.sectionHelperStep1}>
+              Choose the type of appointment you want to book or manage.
+            </p>
+
+            <div className={styles.optionListStep1}>
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  appointmentType === "vaccination" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => setAppointmentType("vaccination")}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>💉</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Vaccination</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Flu, COVID-19, RSV, routine vaccinations.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  appointmentType === "bloodTest" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setAppointmentType("bloodTest");
+                  setTimeout(() => handleContinueFromAppointmentType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>🧪</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Blood tests / specimens</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Lab work, blood draws, or specimen collection.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  appointmentType === "nurseVisit" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setAppointmentType("nurseVisit");
+                  setTimeout(() => handleContinueFromAppointmentType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>👩‍⚕️</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Nurse visit</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Nursing care, wound checks, or follow-up visits.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  appointmentType === "screening" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setAppointmentType("screening");
+                  setTimeout(() => handleContinueFromAppointmentType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>🔍</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>Screening test</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Cancer screening, health checkups, or preventive tests.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.optionCardStep1} ${
+                  appointmentType === "unsure" ? styles.optionSelectedStep1 : ""
+                }`}
+                onClick={() => {
+                  setAppointmentType("unsure");
+                  setTimeout(() => handleContinueFromAppointmentType(), 100);
+                }}
+              >
+                <div className={styles.optionHeaderStep1}>
+                  <div className={styles.optionIconStep1}>❓</div>
+                  <div>
+                    <p className={styles.optionTitleStep1}>I&apos;m not sure</p>
+                    <p className={styles.optionSubtitleStep1}>
+                      Not sure which type of appointment you need.
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("topic")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 3: Step 2: Requirements */}
+        {step === "appointmentRequirements" && (
+          <section className={styles.screen}>
+            <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>What you&apos;ll need</h2>
+              <p className={styles.sectionHelper}>
+                Some services may require a prescription or referral. Here&apos;s what to know.
+              </p>
+            </div>
+
+            <div className={styles.sectionCard}>
+              {appointmentType === "vaccination" && (
+                <>
+                  <p className={styles.sectionHelper} style={{ marginBottom: "12px" }}>
+                    <strong>Most vaccinations</strong> can be booked through Clic Santé or your local CLSC.
+                    Bring your RAMQ card to your appointment.
+                  </p>
+                  <p className={styles.sectionHelper}>
+                    Some vaccinations may be available at pharmacies. Check with your local pharmacy for availability.
+                  </p>
+                </>
+              )}
+              {appointmentType === "bloodTest" && (
+                <>
+                  <p className={styles.sectionHelper} style={{ marginBottom: "12px" }}>
+                    <strong>Some blood tests require a prescription.</strong> We&apos;ll let you know which ones 
+                    when you book.
+                  </p>
+                  <p className={styles.sectionHelper}>
+                    Many routine blood tests can be booked directly through Clic Santé. Bring your RAMQ card and 
+                    any requisition form if you have one.
+                  </p>
+                </>
+              )}
+              {appointmentType === "nurseVisit" && (
+                <>
+                  <p className={styles.sectionHelper} style={{ marginBottom: "12px" }}>
+                    <strong>Nurse visits</strong> are typically available at CLSC locations.
+                  </p>
+                  <p className={styles.sectionHelper}>
+                    Some services may require a referral from a doctor. Call your local CLSC to check what&apos;s 
+                    needed. Bring your RAMQ card.
+                  </p>
+                </>
+              )}
+              {appointmentType === "screening" && (
+                <>
+                  <p className={styles.sectionHelper} style={{ marginBottom: "12px" }}>
+                    <strong>Screening programs</strong> are often coordinated through public health or your CLSC.
+                  </p>
+                  <p className={styles.sectionHelper}>
+                    Some screenings require a referral. Contact your CLSC or visit the Québec health ministry website 
+                    for information about available screening programs.
+                  </p>
+                </>
+              )}
+              {appointmentType === "unsure" && (
+                <>
+                  <p className={styles.sectionHelper} style={{ marginBottom: "12px" }}>
+                    <strong>If you&apos;re not sure,</strong> you can call Info-Santé 811 for guidance on what 
+                    type of appointment you need.
+                  </p>
+                  <p className={styles.sectionHelper}>
+                    Your local CLSC can also help you understand which services are available and how to book them.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("appointmentType")}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButtonBottom}
+                onClick={handleContinueFromAppointmentRequirements}
+              >
+                Continue
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Flow 3: Step 3: Direct Action */}
+        {step === "appointmentAction" && (
+          <section className={styles.screen}>
+            <div className={styles.sectionCard}>
+              <h2 className={styles.sectionTitle}>Book your appointment</h2>
+              <p className={styles.sectionHelper}>
+                Choose an option to book or find your appointment.
+              </p>
+              </div>
+
+            <div className={styles.actionsColumn} style={{ gap: "12px" }}>
+              {appointmentType === "vaccination" && (
+                <a
+                  href="https://portal3.clicsante.ca/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.primaryButton}
+                  style={{ textDecoration: "none", textAlign: "center" }}
+                >
+                  Book vaccination appointment
+                </a>
+              )}
+              
+              {appointmentType === "bloodTest" && (
+                <a
+                  href="https://portal3.clicsante.ca/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.primaryButton}
+                  style={{ textDecoration: "none", textAlign: "center" }}
+                >
+                  Find a blood test clinic near you
+                </a>
+              )}
+
+              {appointmentType === "nurseVisit" && (
+                <a
+                  href="https://www.quebec.ca/en/health/finding-resource/clsc"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.primaryButton}
+                  style={{ textDecoration: "none", textAlign: "center" }}
+                >
+                  See nurse visit options at CLSC
+                </a>
+              )}
+
+              {appointmentType === "screening" && (
+                <a
+                  href="https://www.quebec.ca/en/health/health-system-and-services/preventive-health-and-health-promotion"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.primaryButton}
+                  style={{ textDecoration: "none", textAlign: "center" }}
+                >
+                  Learn more about screening programs
+                </a>
+              )}
+
+              {appointmentType === "unsure" && (
+                <>
+                  <a
+                    href="https://portal3.clicsante.ca/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.primaryButton}
+                    style={{ textDecoration: "none", textAlign: "center" }}
+                  >
+                    Visit Clic Santé
+                  </a>
+                  <a
+                    href="https://www.quebec.ca/en/health/finding-resource/clsc"
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.secondaryButton}
+                    style={{ textDecoration: "none", textAlign: "center", width: "100%" }}
+                  >
+                    Find your local CLSC
+                  </a>
+                </>
+              )}
+
+              <div className={styles.sectionCard} style={{ marginTop: "8px" }}>
+                <p className={styles.sectionHelper} style={{ fontSize: "13px", margin: "0" }}>
+                  <strong>Remember:</strong> Bring your RAMQ card to your appointment. Some services may require 
+                  a prescription or referral - check when booking.
+                </p>
+              </div>
+            </div>
+
+            <div className={styles.bottomActions}>
+              <button
+                type="button"
+                className={styles.secondaryButtonBottom}
+                onClick={() => setStep("appointmentRequirements")}
+              >
+                Back
+              </button>
+            </div>
+          </section>
+        )}
+
+        {step === "questions" && (
+          <section className={styles.step1Screen}>
+            <h1 className={styles.sectionTitleStep1}>A few quick questions</h1>
+            <p className={styles.sectionHelperStep1}>
+              This helps choose a safe care option. No diagnosis is given.
+            </p>
+
+            <div className={styles.optionListStep1}>
+              <div className={styles.sectionCard}>
+                <p className={styles.sectionLabel}>
+                  Is this causing severe pain, difficulty breathing, or heavy bleeding?
+                </p>
+                <div className={styles.chipRow}>
+                  <button
+                    type="button"
+                    className={`${styles.chip} ${
+                      severity === "yes" ? styles.chipSelected : ""
+                    }`}
+                    onClick={() => setSeverity("yes")}
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.chip} ${
+                      severity === "no" ? styles.chipSelected : ""
+                    }`}
+                    onClick={() => setSeverity("no")}
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
 
               <div className={styles.sectionCard}>
-              <p className={styles.sectionLabel}>Who is this for?</p>
-              <div className={styles.chipRow}>
-                <button
-                  type="button"
-                  className={`${styles.chip} ${
-                    ageGroup === "adult" ? styles.chipSelected : ""
-                  }`}
-                  onClick={() => setAgeGroup("adult")}
-                >
-                  👤 Adult
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.chip} ${
-                    ageGroup === "child" ? styles.chipSelected : ""
-                  }`}
-                  onClick={() => setAgeGroup("child")}
-                >
-                  👶 Child
-                </button>
+                <p className={styles.sectionLabel}>Who is this for?</p>
+                <div className={styles.chipRow}>
+                  <button
+                    type="button"
+                    className={`${styles.chip} ${
+                      ageGroup === "adult" ? styles.chipSelected : ""
+                    }`}
+                    onClick={() => setAgeGroup("adult")}
+                  >
+                    👤 Adult
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.chip} ${
+                      ageGroup === "child" ? styles.chipSelected : ""
+                    }`}
+                    onClick={() => setAgeGroup("child")}
+                  >
+                    👶 Child
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className={styles.sectionCard}>
-              <p className={styles.sectionLabel}>Do you need care within 24 hours?</p>
-              <div className={styles.chipRow}>
-                <button
-                  type="button"
-                  className={`${styles.chip} ${
-                    timeNeed === "yes" ? styles.chipSelected : ""
-                  }`}
-                  onClick={() => setTimeNeed("yes")}
-                >
-                  Yes
-                </button>
-                    <button
-                      type="button"
-                  className={`${styles.chip} ${
-                    timeNeed === "no" ? styles.chipSelected : ""
-                  }`}
-                  onClick={() => setTimeNeed("no")}
-                >
-                  No
-                    </button>
+              <div className={styles.sectionCard}>
+                <p className={styles.sectionLabel}>Do you need care within 24 hours?</p>
+                <div className={styles.chipRow}>
+                  <button
+                    type="button"
+                    className={`${styles.chip} ${
+                      timeNeed === "yes" ? styles.chipSelected : ""
+                    }`}
+                    onClick={() => setTimeNeed("yes")}
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.chip} ${
+                      timeNeed === "no" ? styles.chipSelected : ""
+                    }`}
+                    onClick={() => setTimeNeed("no")}
+                  >
+                    No
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -455,17 +1634,17 @@ export default function Home() {
               or call 911.
             </div>
 
-            <div className={styles.actionsRow}>
+            <div className={styles.bottomActions}>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={styles.secondaryButtonBottom}
                 onClick={() => setStep("topic")}
               >
                 Back
               </button>
               <button
                 type="button"
-                className={`${styles.primaryButton} ${
+                className={`${styles.primaryButtonBottom} ${
                   !canContinueFromQuestions ? styles.buttonDisabled : ""
                 }`}
                 disabled={!canContinueFromQuestions}
@@ -478,70 +1657,69 @@ export default function Home() {
         )}
 
         {step === "recommendation" && (
-          <section className={styles.screen}>
-            <div className={styles.sectionCard}>
-              <p className={styles.stepLabel}>Step 3 of 3</p>
-              <h2 className={styles.sectionTitle}>Suggested care options</h2>
-              <p className={styles.sectionHelper}>
-                Based on your answers, these options fit your situation. Choose one to see next steps.
-              </p>
-            </div>
+          <section className={styles.step1Screen}>
+            <h1 className={styles.sectionTitleStep1}>Suggested care options</h1>
+            <p className={styles.sectionHelperStep1}>
+              Based on your answers, these options fit your situation. Choose one to see next steps.
+            </p>
 
-            <div className={styles.optionList}>
+              <div className={styles.optionListStep1}>
               {recommendedOptions.map((id) => {
                 const option = careOptions[id];
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`${styles.optionCard} ${
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`${styles.optionCardRecommendation} ${
                       selectedCareOption === id ? styles.optionSelected : ""
-                    }`}
+                      }`}
                     onClick={() => {
                       setSelectedCareOption(id);
                       setStep("nextStep");
                     }}
-                  >
-                    <div className={styles.optionHeader}>
-                      <div className={styles.optionIcon}>{option.label}</div>
-                      <div>
-                        <p className={styles.optionTitle}>Why this option fits</p>
-                        <p className={styles.optionSubtitle}>{option.why}</p>
+                    >
+                      <div className={styles.optionHeaderRecommendation}>
+                        <div className={styles.optionIconRecommendation}>
+                          {option.label.match(/^[\u{1F300}-\u{1F9FF}]+/u)?.[0] || option.label.charAt(0)}
+                        </div>
+                        <div className={styles.optionContentRecommendation}>
+                          <h3 className={styles.optionTitleRecommendation}>
+                            {option.label.replace(/^[\u{1F300}-\u{1F9FF}]+\s*/u, "")}
+                          </h3>
+                          <div className={styles.optionDetailSection}>
+                            <p className={styles.optionDetailLabel}>Why this option fits</p>
+                            <p className={styles.optionDetailText}>{option.why}</p>
+                          </div>
+                          <div className={styles.optionDetailSection}>
+                            <p className={styles.optionDetailLabel}>What this option can do</p>
+                            <p className={styles.optionDetailText}>{option.canDo}</p>
+                          </div>
+                          {option.cannotDo && (
+                            <div className={styles.optionDetailSection}>
+                              <p className={styles.optionDetailLabel}>What it cannot do</p>
+                              <p className={styles.optionDetailText}>{option.cannotDo}</p>
+                            </div>
+                          )}
+                          <div className={styles.optionDetailSection}>
+                            <p className={styles.optionDetailLabel}>Time expectations</p>
+                            <p className={styles.optionDetailText}>{option.timeExpectation}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              </div>
-                    <div className={styles.optionMetaRow}>
-                      <div className={styles.metaBadge}>What this option can do</div>
-                      {option.cannotDo && (
-                        <div className={styles.metaBadge}>What it cannot do</div>
-                      )}
-                      <div className={styles.metaBadge}>Time expectations</div>
-              </div>
-                    <p className={styles.optionWhy}>
-                      <strong>Can do:</strong> {option.canDo}
-                    </p>
-                    {option.cannotDo && (
-                      <p className={styles.optionWhy}>
-                        <strong>Cannot do:</strong> {option.cannotDo}
-                      </p>
-                    )}
-                    <p className={styles.optionWhy}>
-                      <strong>Time:</strong> {option.timeExpectation}
-                    </p>
-                    <p className={styles.optionNextHint}>Tap to see clear next steps</p>
-                  </button>
-                );
-              })}
-            </div>
 
             <div className={styles.safetyBanner}>
               If symptoms suddenly get worse, if you feel very unwell, or feel unsafe at home, go to the
               emergency room or call 911.
             </div>
 
-            <div className={styles.actionsRow}>
+            <div className={styles.bottomActions}>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={styles.secondaryButtonBottom}
                 onClick={() => setStep("questions")}
               >
                 Back
@@ -560,10 +1738,10 @@ export default function Home() {
               </p>
             </div>
 
-            <div className={styles.actionsRow}>
+            <div className={styles.bottomActions}>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={styles.secondaryButtonBottom}
                 onClick={() => setStep("topic")}
               >
                 Back
@@ -582,7 +1760,7 @@ export default function Home() {
                 Follow these instructions to move forward. This is navigation support only, not a
                 diagnosis.
               </p>
-            </div>
+              </div>
 
             {(() => {
               const content = getNextStepContent(selectedCareOption);
@@ -616,10 +1794,10 @@ export default function Home() {
               emergency room or call 911.
             </div>
 
-            <div className={styles.actionsColumn}>
+            <div className={styles.bottomActions}>
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={styles.secondaryButtonBottom}
                 onClick={restart}
               >
                 Restart

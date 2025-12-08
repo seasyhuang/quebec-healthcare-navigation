@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Québec Healthcare Navigator | Prototype",
+  title: "CareNav",
   description: "Exploring solutions to help Montrealers navigate Québec's healthcare system",
   icons: {
     icon: [
